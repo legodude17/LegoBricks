@@ -1,0 +1,4 @@
+C:\Program Files (x86)\Steam\steamapps\common\RimWorld\Mods\LegoBricks\Assemblies\Reloading.dll
+C:\Program Files (x86)\Steam\steamapps\common\RimWorld\Mods\LegoBricks\Source\Reloading\obj\Debug\Reloading.csprojAssemblyReference.cache
+C:\Program Files (x86)\Steam\steamapps\common\RimWorld\Mods\LegoBricks\Source\Reloading\obj\Debug\Reloading.csproj.CoreCompileInputs.cache
+C:\Program Files (x86)\Steam\steamapps\common\RimWorld\Mods\LegoBricks\Source\Reloading\obj\Debug\Reloading.dll
