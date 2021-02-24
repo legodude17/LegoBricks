@@ -5,14 +5,15 @@ using System.Reflection;
 using UnityEngine;
 using Verse;
 
-namespace Settings
+namespace ModBase
 {
     [StaticConstructorOnStartup]
     public class SettingsRenderer
     {
+        // ReSharper disable once InconsistentNaming
         public static bool __DEBUG = false;
 
-        private static readonly Dictionary<Type, Type> CustomDrawers = new Dictionary<Type, Type>();
+        private static readonly Dictionary<Type, Type> CUSTOM_DRAWERS = new Dictionary<Type, Type>();
 
         private readonly Dictionary<string, string> buffers = new Dictionary<string, string>();
 
@@ -57,7 +58,7 @@ namespace Settings
                 return;
             }
 
-            CustomDrawers.Add(drawee, drawer);
+            CUSTOM_DRAWERS.Add(drawee, drawer);
         }
 
         public void Init()
@@ -69,11 +70,7 @@ namespace Settings
             {
                 Debug("Settings is Enumerable!");
                 var objects = list as object[] ?? list.ToArray();
-                var settingsAndNames =
-                    objects.OfType<INamedSettings>().Select(obj => new Pair<object, string>(obj, obj.Name)).Concat(
-                        objects.Where(obj => obj.GetType().HasAttribute<SettingAttribute>()).Select(obj =>
-                            new Pair<object, string>(obj, obj.GetType().TryGetAttribute<SettingAttribute>()?.Name)));
-                var srs = settingsAndNames.Select(pair => new SettingsRenderer(pair.First, pair.Second))
+                var srs = objects.OfType<INamedSettings>().Select(obj => new SettingsRenderer(obj.Name))
                     .ToArray();
                 Debug("Created " + srs.Length + " renderers!");
                 tabs = srs.Select(sr =>
@@ -128,8 +125,8 @@ namespace Settings
             var classFields =
                 fields.Where(field => field.FieldType.IsClass && !field.FieldType.IsEnum).ToArray();
             customFields = classFields
-                .Where(info => CustomDrawers.Keys.Any(type1 => type1.IsAssignableFrom(info.FieldType))).ToDictionary(
-                    info => info, info => (ICustomRenderer) Activator.CreateInstance(CustomDrawers.First(kv =>
+                .Where(info => CUSTOM_DRAWERS.Keys.Any(type1 => type1.IsAssignableFrom(info.FieldType))).ToDictionary(
+                    info => info, info => (ICustomRenderer) Activator.CreateInstance(CUSTOM_DRAWERS.First(kv =>
                         kv.Key.IsAssignableFrom(info.FieldType)).Value));
             Debug("Found " + customFields.Count + " custom drawing fields");
             subSettings = classFields.Except(customFields.Keys)
@@ -271,16 +268,12 @@ namespace Settings
 
         private string SettingLabel(string key, FieldInfo info)
         {
-            if (Settings is ISettingsLabeler sl) return sl.GetLabel(key);
-            if (info.TryGetAttribute(out SettingAttribute attr) && !attr.Label.NullOrEmpty()) return attr.Label;
-            return key;
+            return (title + "." + key + ".Label").TryTranslate(out var result) ? (string) result : key;
         }
 
         private string Tooltip(string key, FieldInfo info)
         {
-            if (Settings is ISettingsTooltipper st) return st.GetTooltip(key);
-            if (info.TryGetAttribute(out SettingAttribute attr) && !attr.Tooltip.NullOrEmpty()) return attr.Tooltip;
-            return null;
+            return (title + "." + key + ".Tooltip").TryTranslate(out var result) ? result : null;
         }
 
         private static void Debug(string message)
@@ -298,16 +291,6 @@ namespace Settings
     public interface INamedSettings
     {
         string Name { get; }
-    }
-
-    public interface ISettingsLabeler
-    {
-        string GetLabel(string key);
-    }
-
-    public interface ISettingsTooltipper
-    {
-        string GetTooltip(string key);
     }
 
     public static class Util
@@ -331,100 +314,6 @@ namespace Settings
                 renderer.Setters[info].Invoke(renderer.Settings, new[] {obj, info, val});
             else
                 info.SetValue(obj, val);
-        }
-    }
-
-    public class SettingAttribute : Attribute
-    {
-        public string Label;
-        public string Name;
-        public string Tooltip;
-
-        public SettingAttribute(string label, string tooltip = null)
-        {
-            Label = label;
-            Tooltip = tooltip;
-        }
-
-        public SettingAttribute(string name)
-        {
-            Name = name;
-        }
-
-        public SettingAttribute(string label = "", string tooltip = "", string name = "")
-        {
-            Label = label;
-            Tooltip = tooltip;
-            Name = name;
-        }
-    }
-
-    public class SettingsSetterAttribute : Attribute
-    {
-        public string MethodName;
-
-        public SettingsSetterAttribute(string methodName)
-        {
-            MethodName = methodName;
-        }
-    }
-
-    public interface ICustomRenderer
-    {
-        void Render(string label, string tooltip, FieldInfo info, object obj, Listing_Standard listing,
-            SettingsRenderer renderer);
-    }
-
-    public class CustomDefDrawer : ICustomRenderer
-    {
-        private Def curDef;
-        private Vector2 scrollPos = new Vector2(0, 0);
-        private string searchBar = "";
-        private bool setRect;
-        private Rect viewRect;
-
-        public void Render(string label, string tooltip, FieldInfo info, object obj, Listing_Standard listing,
-            SettingsRenderer renderer)
-        {
-            curDef = (Def) info.GetValue(obj);
-            var rect = listing.GetRect(300f);
-            Widgets.Label(rect.LeftHalf(), label);
-            var rect1 = rect.RightHalf();
-            searchBar = Widgets.TextField(rect1.TopPartPixels(30f), searchBar);
-            var defs = GenDefDatabase.GetAllDefsInDatabaseForDef(info.FieldType);
-            var listing1 = new Listing_Standard();
-            var rect2 = rect1.BottomPartPixels(270f);
-            if (!setRect)
-            {
-                viewRect = rect2.AtZero();
-                setRect = true;
-            }
-
-            listing1.BeginScrollView(rect2, ref scrollPos, ref viewRect);
-            foreach (var def1 in defs.Where(def =>
-                def.label.Contains(searchBar) || def.description.Contains(searchBar) ||
-                def.defName.Contains(searchBar)))
-            {
-                var rect4 = listing1.GetRect(20f);
-                if (Widgets.ButtonText(rect4, def1.label))
-                {
-                    searchBar = "";
-                    curDef = def1 == curDef ? null : def1;
-                    info.SetValue(obj, curDef, renderer);
-                }
-
-                TooltipHandler.TipRegion(rect4, def1.description);
-
-                if (def1 == curDef)
-                {
-                    GUI.color = Color.yellow;
-                    Widgets.DrawBox(rect4, 2);
-                    GUI.color = Color.white;
-                }
-            }
-
-            listing1.EndScrollView(ref viewRect);
-            TooltipHandler.TipRegion(rect.LeftHalf(), tooltip);
         }
     }
 }
