@@ -44,7 +44,6 @@ namespace ModBase
                 var val = field.GetValue(this);
                 var lookMode = LookModeForType(field.FieldType);
                 var type = field.FieldType;
-                Log.Message("Val: " + val + " lookMode: " + lookMode + " Type: " + type);
                 Scribe_Universal.Look(ref val, field.Name, ref lookMode, ref type);
                 field.SetValue(this, val);
             }
