@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using UnityEngine;
 using Verse;
@@ -60,6 +61,51 @@ namespace ModBase
 
             listing1.EndScrollView(ref viewRect);
             TooltipHandler.TipRegion(rect.LeftHalf(), tooltip);
+        }
+    }
+
+    public abstract class ChooseFromList<T> : ICustomSettingsDraw, IExposable
+    {
+        private Dictionary<T, bool> state = new Dictionary<T, bool>();
+        public float Height => GetOptions().Count * 20f + 20f;
+
+        public void Render(Listing_Standard listing, string label, string tooltip)
+        {
+            var rect = listing.GetRect(20f);
+            Widgets.Label(rect, label);
+            TooltipHandler.TipRegion(rect, tooltip);
+            foreach (var t in GetOptions())
+            {
+                var rect2 = listing.GetRect(20f);
+                if (Widgets.ButtonText(rect2, Label(t))) state.SetOrAdd(t, !IsEnabled(t));
+
+                GUI.color = IsEnabled(t) ? Color.green : Color.red;
+                Widgets.DrawBox(rect2, 2);
+                GUI.color = Color.white;
+            }
+        }
+
+        public void ExposeData()
+        {
+            Scribe_Collections.Look(ref state, "state", valueLookMode: LookMode.Value,
+                keyLookMode: BaseModSettings.LookModeForType(typeof(T)));
+        }
+
+        public virtual bool InitialState(T thing)
+        {
+            return false;
+        }
+
+        public virtual string Label(T thing)
+        {
+            return thing.ToString();
+        }
+
+        public abstract List<T> GetOptions();
+
+        public bool IsEnabled(T thing)
+        {
+            return state.TryGetValue(thing, out var result) ? result : InitialState(thing);
         }
     }
 }

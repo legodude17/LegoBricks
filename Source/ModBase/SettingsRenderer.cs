@@ -170,9 +170,11 @@ namespace ModBase
 
                 foreach (var field in drawFields)
                     if (field.GetValue(Settings) is ICustomSettingsDraw icsd)
-                        icsd.Render(listing.GetRect(icsd.Height), listing);
+                        icsd.Render(listing, SettingLabel(field.Name, field), Tooltip(field.Name, field));
                     else
-                        Log.ErrorOnce("Field " + field.Name + " is not ICustomSettingsDraw", field.Name.GetHashCode());
+                        Log.ErrorOnce(
+                            "Field " + field.Name + " is not ICustomSettingsDraw, instead is " +
+                            field.GetValue(Settings)?.GetType(), field.Name.GetHashCode());
 
                 Debug("Finished drawing custom fields");
 
@@ -183,7 +185,7 @@ namespace ModBase
                 foreach (var subSetting in subSettings)
                 {
                     var listing2 = listing.BeginSection_NewTemp(subSetting.Height);
-                    var rect = listing.GetRect(subSetting.Height);
+                    var rect = listing2.GetRect(subSetting.Height);
                     if (!subSetting.title.NullOrEmpty())
                     {
                         Debug("Drawing subSettings " + subSetting.title);
@@ -285,7 +287,7 @@ namespace ModBase
     public interface ICustomSettingsDraw
     {
         float Height { get; }
-        void Render(Rect inRect, Listing_Standard listing);
+        void Render(Listing_Standard listing, string label, string tooltip);
     }
 
     public interface INamedSettings

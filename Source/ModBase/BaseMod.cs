@@ -1,36 +1,34 @@
 ﻿using HarmonyLib;
-using ModBase;
+using RimWorld;
 using UnityEngine;
 using Verse;
 
-namespace Setttings
+namespace ModBase
 {
-    public abstract class BaseMod<T> : Mod where T : ModSettings, new()
+    public abstract class BaseMod<T> : Mod where T : BaseModSettings, new()
     {
         public static T Settings;
         public Harmony Harm;
         protected SettingsRenderer Renderer;
 
-        public BaseMod(ModContentPack content) : base(content)
+        protected BaseMod(string id, string defGenerator, ModContentPack content) : base(content)
         {
+            Harm = new Harmony(id);
+            if (!defGenerator.NullOrEmpty())
+                Harm.Patch(AccessTools.Method(typeof(DefGenerator), "GenerateImpliedDefs_PreResolve"),
+                    postfix: new HarmonyMethod(GetType(), defGenerator));
+            Settings = GetSettings<T>();
+            Renderer = new SettingsRenderer(Settings, typeof(T).Namespace);
             LongEventHandler.ExecuteWhenFinished(() =>
             {
-                Harm = new Harmony(Id);
-                DoPatches();
-                Log.Message("Applied patches for " + Harm.Id);
-                InitSettings();
-                Log.Message("Initialized settings for " + Id);
+                DoPostLoadSetup();
+                Settings.Init();
+                ApplySettings();
             });
         }
 
-        public virtual string Id => Content.PackageId;
-
-        public abstract void DoPatches();
-
-        public virtual void InitSettings()
+        public virtual void DoPostLoadSetup()
         {
-            Settings = GetSettings<T>();
-            Renderer = new SettingsRenderer(Settings, typeof(T).Namespace);
         }
 
         public override void DoSettingsWindowContents(Rect inRect)
@@ -42,6 +40,16 @@ namespace Setttings
         public override string SettingsCategory()
         {
             return Content.Name;
+        }
+
+        public override void WriteSettings()
+        {
+            base.WriteSettings();
+            ApplySettings();
+        }
+
+        public virtual void ApplySettings()
+        {
         }
     }
 }

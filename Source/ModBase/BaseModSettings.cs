@@ -18,6 +18,10 @@ namespace ModBase
             return false;
         }
 
+        public virtual void Init()
+        {
+        }
+
         public virtual object DefaultValue(FieldInfo info)
         {
             if (info.HasAttribute<DefaultAttribute>())
@@ -49,7 +53,7 @@ namespace ModBase
             }
         }
 
-        private LookMode LookModeForType(Type t)
+        public static LookMode LookModeForType(Type t)
         {
             if (t == null) return LookMode.Undefined;
             if (t.IsValueType || typeof(string).IsAssignableFrom(t) ||
