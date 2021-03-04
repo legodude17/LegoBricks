@@ -206,7 +206,7 @@ namespace ModBase
 
                 Debug("Finished drawing custom renderers");
 
-                listing.EndScrollView(ref inRect);
+                listing.EndScrollView(ref viewRect);
             }
             else
             {

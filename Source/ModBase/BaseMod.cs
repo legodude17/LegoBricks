@@ -11,16 +11,27 @@ namespace ModBase
         public Harmony Harm;
         protected SettingsRenderer Renderer;
 
-        protected BaseMod(string id, string defGenerator, ModContentPack content) : base(content)
+        protected BaseMod(string id, string defGenerator, ModContentPack content, bool earlySettings = true) :
+            base(content)
         {
             Harm = new Harmony(id);
             if (!defGenerator.NullOrEmpty())
                 Harm.Patch(AccessTools.Method(typeof(DefGenerator), "GenerateImpliedDefs_PreResolve"),
                     postfix: new HarmonyMethod(GetType(), defGenerator));
-            Settings = GetSettings<T>();
-            Renderer = new SettingsRenderer(Settings, typeof(T).Namespace);
+            if (earlySettings)
+            {
+                Settings = GetSettings<T>();
+                Renderer = new SettingsRenderer(Settings, typeof(T).Namespace);
+            }
+
             LongEventHandler.ExecuteWhenFinished(() =>
             {
+                if (!earlySettings)
+                {
+                    Settings = GetSettings<T>();
+                    Renderer = new SettingsRenderer(Settings, typeof(T).Namespace);
+                }
+
                 DoPostLoadSetup();
                 Settings.Init();
                 ApplySettings();

@@ -33,9 +33,12 @@ namespace Reloading
                 postfix: new HarmonyMethod(GetType(), "GenerateAdditionalAmmo"));
             if (ModLister.HasActiveModWithName("Vanilla Expanded Framework") ||
                 ModLister.HasActiveModWithName("Multi Verb Combat Framework"))
+            {
+                Log.Message("[Reloading] Applying MVCF compat patch");
                 harm.Patch(
                     AccessTools.Method(Type.GetType("MVCF.Utilities.PawnVerbGizmoUtility, MVCF"), "GetGizmosForVerb"),
                     postfix: new HarmonyMethod(GetType(), "UseReloadableCommand"));
+            }
 
             Log.Message("Applied patches for " + harm.Id);
         }
@@ -118,7 +121,7 @@ namespace Reloading
         public static bool CreateReloadableVerbTargetCommand(Thing ownerThing, Verb verb,
             ref Command_VerbTarget __result)
         {
-            if (verb is Verb_ShootReloadable verbReloadable)
+            if (verb is IReloadingVerb verbReloadable)
             {
                 var reloadable = verbReloadable.Reloadable;
                 if (reloadable == null) return true;
@@ -156,9 +159,10 @@ namespace Reloading
         public static IEnumerable<Gizmo> UseReloadableCommand(IEnumerable<Gizmo> __result)
         {
             foreach (var gizmo in __result)
-                if (gizmo is Command_VerbTarget command && command.verb is Verb_ShootReloadable verbReloadable)
+                if (gizmo is Command_VerbTarget command && command.verb is IReloadingVerb reloadingVerb)
                 {
-                    var reloadable = verbReloadable.Reloadable;
+                    var verbReloadable = command.verb;
+                    var reloadable = reloadingVerb.Reloadable;
                     if (reloadable == null)
                     {
                         yield return gizmo;

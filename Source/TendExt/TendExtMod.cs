@@ -30,7 +30,7 @@ namespace TendExt
                 {
                     var stat = __instance.job.targetB.Thing.GetStatValue(StatDefOf.MedicalTendSpeed);
                     if (Math.Abs(stat - 1f) > 0.0000001f)
-                        toil.defaultDuration *= (int) (1 - stat);
+                        toil.defaultDuration = (int) (toil.defaultDuration * (1 - stat));
                 }
 
                 yield return toil;
