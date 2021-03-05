@@ -2,7 +2,7 @@
 
 namespace Reloading
 {
-    public class ReloadingVerbShoot : Verb_Shoot, IReloadingVerb
+    public class Verb_ShootReloadable : Verb_Shoot, IReloadingVerb
     {
         public override ThingDef Projectile =>
             Reloadable?.CurrentProjectile ?? base.Projectile;
