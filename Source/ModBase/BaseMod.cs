@@ -50,6 +50,7 @@ namespace ModBase
 
         public override string SettingsCategory()
         {
+            if (typeof(T) == typeof(BaseModSettings)) return "";
             return Content.Name;
         }
 

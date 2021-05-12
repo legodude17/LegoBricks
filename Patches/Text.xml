@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Patch>
+    <Operation Class="PatchOperationAdd">
+        <xpath>/Defs/TerrainDef[defName="GU_Piping"]/affordances</xpath>
+        <value>
+            <li>Heavy</li>
+            <li>Medium</li>
+        </value>
+    </Operation>
+</Patch>
