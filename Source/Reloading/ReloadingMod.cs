@@ -14,10 +14,15 @@ namespace Reloading
     public class ReloadingMod : Mod
     {
         private static FieldInfo thisPropertyInfo;
+        private static readonly List<MethodInfo> patchedMethods = new List<MethodInfo>();
+        private static Harmony harm;
+
+        private static readonly Dictionary<Verb, IReloadable> reloadables = new Dictionary<Verb, IReloadable>();
+        private static HarmonyMethod[] patches;
 
         public ReloadingMod(ModContentPack content) : base(content)
         {
-            var harm = new Harmony("legodude17.weaponreloading");
+            harm = new Harmony("legodude17.weaponreloading");
             harm.Patch(
                 AccessTools.Method(typeof(FloatMenuMakerMap), "AddHumanlikeOrders"),
                 postfix: new HarmonyMethod(AccessTools.Method(GetType(), "AddWeaponReloadOrders")));
@@ -40,7 +45,86 @@ namespace Reloading
                     postfix: new HarmonyMethod(GetType(), "UseReloadableCommand"));
             }
 
+            patches = new[]
+            {
+                new HarmonyMethod(GetType(), nameof(CheckShots)),
+                new HarmonyMethod(GetType(), nameof(TryCastShot_Postfix)),
+                new HarmonyMethod(GetType(), nameof(Projectile_Prefix))
+            };
+
             Log.Message("Applied patches for " + harm.Id);
+        }
+
+        public static bool CheckShots(Verb __instance, ref bool __result)
+        {
+            var reloadable = GetReloadable(__instance);
+            if (reloadable == null || reloadable.ShotsRemaining > 0) return true;
+            __result = false;
+            return false;
+        }
+
+        public static void TryCastShot_Postfix(Verb __instance)
+        {
+            GetReloadable(__instance)?.Notify_ProjectileFired();
+        }
+
+        public static bool Projectile_Prefix(Verb __instance, ref ThingDef __result)
+        {
+            if (GetReloadable(__instance)?.CurrentProjectile is ThingDef proj)
+            {
+                __result = proj;
+                return false;
+            }
+
+            return true;
+        }
+
+
+        public static void Patch(MethodInfo target, HarmonyMethod prefix = null, HarmonyMethod postfix = null)
+        {
+            if (patchedMethods.Contains(target)) return;
+            patchedMethods.Add(target);
+            harm.Patch(target, prefix, postfix);
+        }
+
+        public static MethodInfo FirstDeclaredMethod(Type type, string methodName)
+        {
+            var method = AccessTools.Method(type, methodName);
+            while (!method.IsDeclaredMember())
+            {
+                type = type?.BaseType;
+                method = AccessTools.Method(type, methodName);
+                if (type == null || method == null) return null;
+            }
+
+            return method;
+        }
+
+        public static void RegisterVerb(Type verbType)
+        {
+            Patch(FirstDeclaredMethod(verbType, "TryCastShot"), patches[0], patches[1]);
+            Patch(FirstDeclaredMethod(verbType, "Available"), patches[0]);
+            var method = AccessTools.Method(verbType, "Projectile");
+            if (method != null) Patch(method, patches[1]);
+        }
+
+        public static IReloadable GetReloadable(Verb verb)
+        {
+            if (reloadables.ContainsKey(verb)) return reloadables[verb];
+
+            IReloadable rv;
+
+            if (verb.EquipmentSource != null &&
+                verb.EquipmentSource.AllComps.FirstOrFallback(comp => comp is IReloadable) is IReloadable r1)
+                rv = r1;
+
+            else if (verb.HediffCompSource?.parent != null &&
+                     verb.HediffCompSource.parent.comps.FirstOrFallback(comp => comp is IReloadable) is IReloadable r2
+            )
+                rv = r2;
+            else rv = null;
+            reloadables.Add(verb, rv);
+            return rv;
         }
 
         public static void AddWeaponReloadOrders(List<FloatMenuOption> opts, Vector3 clickPos, Pawn pawn)
@@ -121,10 +205,8 @@ namespace Reloading
         public static bool CreateReloadableVerbTargetCommand(Thing ownerThing, Verb verb,
             ref Command_VerbTarget __result)
         {
-            if (verb is IReloadingVerb verbReloadable)
+            if (GetReloadable(verb) is IReloadable reloadable)
             {
-                var reloadable = verbReloadable.Reloadable;
-                if (reloadable == null) return true;
                 var command = new Command_ReloadableVerbTarget(reloadable)
                 {
                     defaultDesc = ownerThing.LabelCap + ": " + ownerThing.def.description.CapitalizeFirst(),
@@ -159,15 +241,9 @@ namespace Reloading
         public static IEnumerable<Gizmo> UseReloadableCommand(IEnumerable<Gizmo> __result)
         {
             foreach (var gizmo in __result)
-                if (gizmo is Command_VerbTarget command && command.verb is IReloadingVerb reloadingVerb)
+                if (gizmo is Command_VerbTarget command && GetReloadable(command.verb) is IReloadable reloadable)
                 {
                     var verbReloadable = command.verb;
-                    var reloadable = reloadingVerb.Reloadable;
-                    if (reloadable == null)
-                    {
-                        yield return gizmo;
-                        continue;
-                    }
 
                     var reloadableVerbTarget = new Command_ReloadableVerbTarget(reloadable)
                     {
@@ -257,9 +333,9 @@ namespace Reloading
                 canUseRangedWeapon = true, verbToUse = __instance.verb, endIfCantShootInMelee = true
             };
             pawn.jobs.EndCurrentJob(JobCondition.InterruptForced);
-            pawn.jobs.TryTakeOrderedJob_NewTemp(JobGiver_ReloadFromInventory.MakeReloadJob(comp, item),
+            pawn.jobs.TryTakeOrderedJob(JobGiver_ReloadFromInventory.MakeReloadJob(comp, item),
                 requestQueueing: false);
-            pawn.jobs.TryTakeOrderedJob_NewTemp(job, JobTag.DraftedOrder, true);
+            pawn.jobs.TryTakeOrderedJob(job, JobTag.DraftedOrder, true);
         }
 
         public static void GenerateAdditionalAmmo(Pawn p)

@@ -4,6 +4,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Verse;
 using Verse.Sound;
 
@@ -91,11 +92,23 @@ namespace Reloading
         public int MaxShots;
         public SoundDef ReloadSound;
         public float ReloadTimePerShot;
+        public string VerbLabel;
 
         public override IEnumerable<string> ConfigErrors(HediffDef parentDef)
         {
             AmmoFilter.ResolveReferences();
-            return base.ConfigErrors(parentDef);
+            if (TargetVerb(parentDef) == null) yield return "Cannot find verb to be reloaded.";
+            else ReloadingMod.RegisterVerb(TargetVerb(parentDef).verbClass);
+
+            foreach (var e in base.ConfigErrors(parentDef)) yield return e;
+        }
+
+        private VerbProperties TargetVerb(HediffDef parent)
+        {
+            var verbs = parent.CompProps<HediffCompProperties_VerbGiver>().verbs;
+            return VerbLabel.NullOrEmpty()
+                ? verbs.FirstOrDefault()
+                : verbs.FirstOrDefault(v => v.label == VerbLabel);
         }
     }
 }

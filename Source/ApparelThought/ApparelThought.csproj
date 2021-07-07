@@ -4,11 +4,11 @@
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{B761C01F-F4F4-4F83-964C-1839A5B74803}</ProjectGuid>
+    <ProjectGuid>{FFC2C65B-A829-4B85-B353-A3CAE73B5361}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>Reloading</RootNamespace>
-    <AssemblyName>2Reloading</AssemblyName>
+    <RootNamespace>ApparelThought</RootNamespace>
+    <AssemblyName>ApparelThought</AssemblyName>
     <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <Deterministic>true</Deterministic>
@@ -32,11 +32,15 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="0Harmony">
-      <HintPath>..\..\..\..\..\..\..\workshop\content\294100\2009463077\Current\Assemblies\0Harmony.dll</HintPath>
+      <HintPath>..\..\..\..\..\..\workshop\content\294100\2009463077\Current\Assemblies\0Harmony.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="1ModBase, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\Assemblies\1ModBase.dll</HintPath>
+    </Reference>
     <Reference Include="Assembly-CSharp">
-      <HintPath>..\..\..\..\..\RimWorldWin64_Data\Managed\Assembly-CSharp.dll</HintPath>
+      <HintPath>..\..\..\..\RimWorldWin64_Data\Managed\Assembly-CSharp.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="System" />
@@ -47,27 +51,9 @@
     <Reference Include="System.Data" />
     <Reference Include="System.Net.Http" />
     <Reference Include="System.Xml" />
-    <Reference Include="UnityEngine.CoreModule">
-      <HintPath>..\..\..\..\..\RimWorldWin64_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Command_ReloadableVerbTarget.cs" />
-    <Compile Include="CompChangeableAmmo.cs" />
-    <Compile Include="CompReloadable.cs" />
-    <Compile Include="GenerateWithAmmo.cs" />
-    <Compile Include="HediffComp_ChangeableAmmo.cs" />
-    <Compile Include="HediffComp_Reloadable.cs" />
-    <Compile Include="IReloadable.cs" />
-    <Compile Include="JobDriver_ReloadFromInventory.cs" />
-    <Compile Include="JobDriver_Reload.cs" />
-    <Compile Include="JobDriver_Unload.cs" />
-    <Compile Include="JobGiver_ReloadFromInventory.cs" />
-    <Compile Include="JobGiver_Reload.cs" />
-    <Compile Include="ReloadingDefOf.cs" />
-    <Compile Include="ReloadingMod.cs" />
-    <Compile Include="Utils.cs" />
+    <Compile Include="Mod.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
