@@ -8,6 +8,8 @@ namespace ModBase
 {
     public interface ICustomRenderer
     {
+        float Height { get; }
+
         void Render(string label, string tooltip, FieldInfo info, object obj, Listing_Standard listing,
             SettingsRenderer renderer);
     }
@@ -20,6 +22,8 @@ namespace ModBase
         private bool setRect;
         private Rect viewRect;
 
+        public float Height => 300f;
+
         public void Render(string label, string tooltip, FieldInfo info, object obj, Listing_Standard listing,
             SettingsRenderer renderer)
         {
@@ -28,19 +32,20 @@ namespace ModBase
             Widgets.Label(rect.LeftHalf(), label);
             var rect1 = rect.RightHalf();
             searchBar = Widgets.TextField(rect1.TopPartPixels(30f), searchBar);
-            var defs = GenDefDatabase.GetAllDefsInDatabaseForDef(info.FieldType);
+            var defs = GenDefDatabase.GetAllDefsInDatabaseForDef(info.FieldType).Where(def =>
+                def.label.Contains(searchBar) || def.description.Contains(searchBar) ||
+                def.defName.Contains(searchBar)).ToList();
             var listing1 = new Listing_Standard();
             var rect2 = rect1.BottomPartPixels(270f);
             if (!setRect)
             {
-                viewRect = rect2.AtZero();
+                viewRect = new Rect(0, 0, rect2.width - 16f, 20f * defs.Count);
                 setRect = true;
             }
 
-            listing1.BeginScrollView(rect2, ref scrollPos, ref viewRect);
-            foreach (var def1 in defs.Where(def =>
-                def.label.Contains(searchBar) || def.description.Contains(searchBar) ||
-                def.defName.Contains(searchBar)))
+            Widgets.BeginScrollView(rect2, ref scrollPos, viewRect);
+            listing1.Begin(viewRect);
+            foreach (var def1 in defs)
             {
                 var rect4 = listing1.GetRect(20f);
                 if (Widgets.ButtonText(rect4, def1.label))
@@ -59,7 +64,8 @@ namespace ModBase
                 }
             }
 
-            listing1.EndScrollView(ref viewRect);
+            listing1.End();
+            Widgets.EndScrollView();
             TooltipHandler.TipRegion(rect.LeftHalf(), tooltip);
         }
     }

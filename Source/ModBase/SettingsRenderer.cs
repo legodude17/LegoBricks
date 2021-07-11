@@ -47,7 +47,9 @@ namespace ModBase
             title = name;
         }
 
-        private float Height => keys.Length * 20f + subSettings.Sum(ss => ss.Height);
+        private float Height => subSettings.Sum(ss => ss.Height) + drawFields.Sum(field =>
+                                    ((ICustomSettingsDraw) field.GetValue(Settings)).Height) + 20f * keys.Length +
+                                customFields.Sum(kv => kv.Value.Height);
 
         public static void AddCustomDrawer(Type drawee, Type drawer)
         {
@@ -155,17 +157,19 @@ namespace ModBase
 
         private void RenderInternal(Rect inRect, Listing_Standard listing)
         {
+            Debug($"tabs is {(tabs == null ? "null" : "not null")}");
             if (tabs != null) TabDrawer.DrawTabs(inRect, tabs);
             Debug("curTab is " + curTab + " and ready is " + Ready);
             if (curTab == mainTabName)
             {
                 if (!setRect)
                 {
-                    viewRect = inRect.AtZero();
+                    viewRect = new Rect(0, 0, inRect.width - 16f, Height);
                     setRect = true;
                 }
 
-                listing.BeginScrollView(inRect, ref scrollPos, ref viewRect);
+                Widgets.BeginScrollView(inRect, ref scrollPos, viewRect);
+                listing.Begin(viewRect);
                 Debug("Begun scroll view");
 
                 foreach (var field in drawFields)
@@ -184,7 +188,7 @@ namespace ModBase
 
                 foreach (var subSetting in subSettings)
                 {
-                    var listing2 = listing.BeginSection_NewTemp(subSetting.Height);
+                    var listing2 = listing.BeginSection(subSetting.Height);
                     var rect = listing2.GetRect(subSetting.Height);
                     if (!subSetting.title.NullOrEmpty())
                     {
@@ -206,7 +210,8 @@ namespace ModBase
 
                 Debug("Finished drawing custom renderers");
 
-                listing.EndScrollView(ref viewRect);
+                listing.End();
+                Widgets.EndScrollView();
             }
             else
             {

@@ -1,6 +1,4 @@
-Source/CompOffhandEquip/
-/**/obj/**
-/**/.vs/**
-Textures/
 *.user
-Defs/
+obj
+bin
+.vs
