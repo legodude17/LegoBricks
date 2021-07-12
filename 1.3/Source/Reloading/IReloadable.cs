@@ -2,6 +2,7 @@
 // 
 // Created 2021-02-06
 
+using System.Collections.Generic;
 using Verse;
 
 namespace Reloading
@@ -15,6 +16,7 @@ namespace Reloading
         ThingDef CurrentProjectile { get; }
         ThingDef AmmoExample { get; }
         object Parent { get; }
+        List<ThingDefCountRangeClass> GenerateAmmo { get; }
         bool CanReloadFrom(Thing ammo);
         Thing Reload(Thing ammo);
         int ReloadTicks(Thing ammo);

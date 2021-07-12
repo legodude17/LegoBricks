@@ -8,6 +8,7 @@ using RimWorld;
 using UnityEngine;
 using Verse;
 using Verse.AI;
+using Verse.AI.Group;
 
 namespace Reloading
 {
@@ -36,6 +37,10 @@ namespace Reloading
                 postfix: new HarmonyMethod(GetType(), "ReloadWeaponIfEndingCooldown"));
             harm.Patch(AccessTools.Method(typeof(PawnInventoryGenerator), "GenerateInventoryFor"),
                 postfix: new HarmonyMethod(GetType(), "GenerateAdditionalAmmo"));
+            harm.Patch(AccessTools.Method(typeof(JobDriver_Hunt), "MakeNewToils"),
+                postfix: new HarmonyMethod(GetType(), nameof(MakeNewToils_Postfix)));
+            harm.Patch(AccessTools.Method(typeof(WorkGiver_HunterHunt), nameof(WorkGiver_HunterHunt.HasHuntingWeapon)),
+                new HarmonyMethod(GetType(), nameof(HasHuntingWeapon_Postfix)));
             if (ModLister.HasActiveModWithName("Vanilla Expanded Framework") ||
                 ModLister.HasActiveModWithName("Multi Verb Combat Framework"))
             {
@@ -53,6 +58,16 @@ namespace Reloading
             };
 
             Log.Message("Applied patches for " + harm.Id);
+        }
+
+        public static void HasHuntingWeapon_Postfix(ref bool __result, Pawn p)
+        {
+            if (__result) __result = p.equipment.PrimaryEq.PrimaryVerb.IsStillUsableBy(p);
+        }
+
+        public static void MakeNewToils_Postfix(JobDriver_Hunt __instance)
+        {
+            __instance.FailOn(() => __instance.job?.verbToUse != null && __instance.job.verbToUse.IsMeleeAttack);
         }
 
         public static bool CheckShots(Verb __instance, ref bool __result)
@@ -90,11 +105,11 @@ namespace Reloading
         public static MethodInfo FirstDeclaredMethod(Type type, string methodName)
         {
             var method = AccessTools.Method(type, methodName);
-            while (!method.IsDeclaredMember())
+            while (method == null || !method.IsDeclaredMember())
             {
                 type = type?.BaseType;
                 method = AccessTools.Method(type, methodName);
-                if (type == null || method == null) return null;
+                if (type == null) return null;
             }
 
             return method;
@@ -104,8 +119,8 @@ namespace Reloading
         {
             Patch(FirstDeclaredMethod(verbType, "TryCastShot"), patches[0], patches[1]);
             Patch(FirstDeclaredMethod(verbType, "Available"), patches[0]);
-            var method = AccessTools.Method(verbType, "Projectile");
-            if (method != null) Patch(method, patches[1]);
+            var method = FirstDeclaredMethod(verbType, "get_Projectile");
+            if (method != null) Patch(method, patches[2]);
         }
 
         public static IReloadable GetReloadable(Verb verb)
@@ -311,9 +326,10 @@ namespace Reloading
 
         public static bool PawnCanCurrentlyUseVerb(Verb verb, Pawn pawn)
         {
-            return verb.IsMeleeAttack
-                ? verb.CanHitTargetFrom(pawn.Position, verb.CurrentTarget)
-                : verb.IsStillUsableBy(pawn);
+            Log.Message($"Checking use of {verb} for {pawn} with job {pawn.CurJob}");
+            if (verb.IsMeleeAttack && pawn.CurJobDef == JobDefOf.Hunt) return false;
+            return verb.IsStillUsableBy(pawn) &&
+                   (!verb.IsMeleeAttack || pawn.Position.DistanceTo(verb.CurrentTarget.Cell) < 1.43f);
         }
 
         public static void ReloadWeaponIfEndingCooldown(Stance_Busy __instance)
@@ -321,46 +337,45 @@ namespace Reloading
             if (__instance.verb?.EquipmentSource == null) return;
             var pawn = __instance.verb.CasterPawn;
             if (pawn == null) return;
-            var comp = __instance.verb.EquipmentSource.TryGetComp<CompReloadable>();
-            if (comp == null || comp.ShotsRemaining != 0 || pawn.stances.curStance.StanceBusy) return;
+            var reloadable = GetReloadable(__instance.verb);
+            if (reloadable == null || reloadable.ShotsRemaining != 0 || pawn.stances.curStance.StanceBusy) return;
 
-            var item = pawn.inventory.innerContainer.FirstOrDefault(t => comp.CanReloadFrom(t));
+            var item = pawn.inventory.innerContainer.FirstOrDefault(t => reloadable.CanReloadFrom(t));
 
-            if (item == null) return;
-
-            var job = new Job(JobDefOf.AttackStatic, pawn.CurJob.targetA)
+            if (item == null)
             {
-                canUseRangedWeapon = true, verbToUse = __instance.verb, endIfCantShootInMelee = true
+                if (!pawn.IsColonist && reloadable.Parent is ThingWithComps eq &&
+                    !pawn.equipment.TryDropEquipment(eq, out var result, pawn.Position))
+                    Log.Message("Failed to drop " + result);
+                pawn.jobs.EndCurrentJob(JobCondition.InterruptForced);
+                if (!pawn.IsColonist) pawn.GetLord()?.CurLordToil?.UpdateAllDuties();
+                return;
+            }
+
+            var job = new Job(pawn.CurJobDef, pawn.CurJob.targetA, pawn.CurJob.targetB, pawn.CurJob.targetC)
+            {
+                canUseRangedWeapon = pawn.CurJob.canUseRangedWeapon,
+                verbToUse = __instance.verb,
+                endIfCantShootInMelee = pawn.CurJob.endIfCantShootInMelee
             };
             pawn.jobs.EndCurrentJob(JobCondition.InterruptForced);
-            pawn.jobs.TryTakeOrderedJob(JobGiver_ReloadFromInventory.MakeReloadJob(comp, item),
-                requestQueueing: false);
-            pawn.jobs.TryTakeOrderedJob(job, JobTag.DraftedOrder, true);
+            pawn.jobs.TryTakeOrderedJob(JobGiver_ReloadFromInventory.MakeReloadJob(reloadable, item),
+                JobTag.UnspecifiedLordDuty);
+            if (!pawn.IsColonist) pawn.GetLord()?.CurLordToil?.UpdateAllDuties();
+            else pawn.jobs.TryTakeOrderedJob(job, JobTag.UnspecifiedLordDuty, true);
         }
 
         public static void GenerateAdditionalAmmo(Pawn p)
         {
-            if (p.equipment?.Primary == null) return;
-            if (!p.equipment.Primary.def.HasModExtension<GenerateWithAmmo>()) return;
-            var ext = p.equipment.Primary.def.GetModExtension<GenerateWithAmmo>();
-            foreach (var cc in ext.min)
+            foreach (var thingDefCountRange in from comp in p.AllReloadComps()
+                let gen = comp.GenerateAmmo
+                where gen != null
+                from tdcr in gen
+                select tdcr)
             {
-                var max = ext.max.Find(tdcc => tdcc.thingDef == cc.thingDef);
-                var count = 0;
-                if (max == null)
-                {
-                    Log.Warning(p.equipment.Primary.def.label + " has min number of " + cc.thingDef.label +
-                                " but no max. This is not recommended.");
-                    count = cc.count;
-                }
-                else
-                {
-                    count = new IntRange(cc.count, max.count).RandomInRange;
-                }
-
-                var t = ThingMaker.MakeThing(cc.thingDef);
-                t.stackCount = count;
-                p.inventory.innerContainer.TryAdd(t);
+                var ammo = ThingMaker.MakeThing(thingDefCountRange.thingDef);
+                ammo.stackCount = thingDefCountRange.countRange.RandomInRange;
+                p.inventory?.innerContainer.TryAdd(ammo);
             }
         }
     }

@@ -1,4 +1,8 @@
-﻿using System;
+﻿// HediffComp_Reloadable.cs by Joshua Bennett
+// 
+// Created 2021-02-06
+
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Verse;
@@ -6,17 +10,18 @@ using Verse.Sound;
 
 namespace Reloading
 {
-    public class CompReloadable : ThingComp, IReloadable
+    public class HediffComp_Reloadable : HediffComp, IReloadable
     {
-        public CompProperties_Reloadable Props => props as CompProperties_Reloadable;
+        public HediffCompProperties_Reloadable Props => props as HediffCompProperties_Reloadable;
+
+        public List<ThingDefCountRangeClass> GenerateAmmo => Props.GenerateAmmo;
+
         public int ShotsRemaining { get; set; }
         public int ItemsPerShot => Props.ItemsPerShot;
-        public int MaxShots => Props.MaxShots;
-        public Thing Thing => parent;
-        public ThingDef AmmoExample => Props.AmmoFilter.AnyAllowedDef;
-        public object Parent => parent;
-
         public virtual ThingDef CurrentProjectile => null;
+        public int MaxShots => Props.MaxShots;
+        public Thing Thing => parent.pawn;
+        public object Parent => parent;
 
         public virtual Thing Reload(Thing ammo)
         {
@@ -40,7 +45,7 @@ namespace Reloading
         {
             // Log.Message(ammo + " x" + ammo.stackCount);
             if (ammo == null) return false;
-            return Props.AmmoFilter.Allows(ammo) && ammo.stackCount >= Props.ItemsPerShot;
+            return Props.AmmoFilter.Allows(ammo) && ammo.stackCount >= ItemsPerShot;
         }
 
         public virtual void Unload()
@@ -48,7 +53,7 @@ namespace Reloading
             var thing = ThingMaker.MakeThing(Props.AmmoFilter.AnyAllowedDef);
             thing.stackCount = ShotsRemaining;
             ShotsRemaining = 0;
-            GenPlace.TryPlaceThing(thing, parent.Position, parent.Map, ThingPlaceMode.Near);
+            GenPlace.TryPlaceThing(thing, parent.pawn.Position, parent.pawn.Map, ThingPlaceMode.Near);
         }
 
         public virtual void Notify_ProjectileFired()
@@ -58,69 +63,65 @@ namespace Reloading
 
         public void ReloadEffect(int curTick, int ticksTillDone)
         {
-            if (curTick == ticksTillDone - 2f.SecondsToTicks()) Props.ReloadSound?.PlayOneShot(parent);
+            if (curTick == ticksTillDone - 2f.SecondsToTicks()) Props.ReloadSound?.PlayOneShot(parent.pawn);
         }
 
-        public override void Initialize(CompProperties props)
-        {
-            base.Initialize(props);
-            ShotsRemaining = Props.MaxShots;
-        }
+        public ThingDef AmmoExample => Props.AmmoFilter.AnyAllowedDef;
 
         private int ShotsToReload(Thing ammo)
         {
-            return Math.Min(ammo.stackCount / ItemsPerShot, MaxShots - ShotsRemaining);
+            return Math.Min(ammo.stackCount / Props.ItemsPerShot, Props.MaxShots - ShotsRemaining);
         }
 
-        public override void PostExposeData()
+        public override void CompExposeData()
         {
-            base.PostExposeData();
+            base.CompExposeData();
             var sr = ShotsRemaining;
             Scribe_Values.Look(ref sr, "ShotsRemaining");
             ShotsRemaining = sr;
         }
 
-        public override string CompInspectStringExtra()
+        public override void CompPostPostAdd(DamageInfo? dinfo)
         {
-            return base.CompInspectStringExtra() + (ShotsRemaining == 0
-                ? "Reloading.NoAmmo".Translate()
-                : "Reloading.Ammo".Translate(ShotsRemaining, Props.MaxShots));
+            base.CompPostPostAdd(dinfo);
+            ShotsRemaining = Props.MaxShots;
         }
     }
 
-    public class CompProperties_Reloadable : CompProperties
+    public class HediffCompProperties_Reloadable : HediffCompProperties
     {
         public ThingFilter AmmoFilter;
+        public List<ThingDefCountRangeClass> GenerateAmmo;
         public int ItemsPerShot;
         public int MaxShots;
+        public Type NewVerbClass;
         public SoundDef ReloadSound;
         public float ReloadTimePerShot;
         public string VerbLabel;
 
-        public override void ResolveReferences(ThingDef parentDef)
+        public override IEnumerable<string> ConfigErrors(HediffDef parentDef)
         {
-            base.ResolveReferences(parentDef);
             AmmoFilter.ResolveReferences();
-        }
-
-        public override IEnumerable<string> ConfigErrors(ThingDef parentDef)
-        {
-            if (TargetVerb(parentDef) == null) yield return "Cannot find verb to be reloaded.";
+            if (TargetVerb(parentDef) == null)
+            {
+                yield return "Cannot find verb to be reloaded.";
+            }
+            else
+            {
+                var verb = TargetVerb(parentDef);
+                if (NewVerbClass != null) verb.verbClass = NewVerbClass;
+                ReloadingMod.RegisterVerb(verb.verbClass);
+            }
 
             foreach (var e in base.ConfigErrors(parentDef)) yield return e;
         }
 
-        public override void PostLoadSpecial(ThingDef parent)
+        private VerbProperties TargetVerb(HediffDef parent)
         {
-            base.PostLoadSpecial(parent);
-            ReloadingMod.RegisterVerb(TargetVerb(parent).verbClass);
-        }
-
-        private VerbProperties TargetVerb(ThingDef parent)
-        {
+            var verbs = parent.CompProps<HediffCompProperties_VerbGiver>().verbs;
             return VerbLabel.NullOrEmpty()
-                ? parent.Verbs.FirstOrDefault()
-                : parent.Verbs.FirstOrDefault(v => v.label == VerbLabel);
+                ? verbs.FirstOrDefault()
+                : verbs.FirstOrDefault(v => v.label == VerbLabel);
         }
     }
 }
