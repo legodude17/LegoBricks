@@ -48,7 +48,7 @@ namespace ModBase
         }
 
         private float Height => subSettings.Sum(ss => ss.Height) + drawFields.Sum(field =>
-                                    ((ICustomSettingsDraw) field.GetValue(Settings)).Height) + 20f * keys.Length +
+                                    ((ICustomSettingsDraw) field.GetValue(Settings)).Height) + (Text.LineHeight + 2f) * keys.Length +
                                 customFields.Sum(kv => kv.Value.Height);
 
         public static void AddCustomDrawer(Type drawee, Type drawer)
@@ -165,6 +165,7 @@ namespace ModBase
                 if (!setRect)
                 {
                     viewRect = new Rect(0, 0, inRect.width - 16f, Height);
+                    Debug($"Set viewRect to {viewRect}");
                     setRect = true;
                 }
 
@@ -214,9 +215,7 @@ namespace ModBase
                 Widgets.EndScrollView();
             }
             else
-            {
                 renderers[curTab].RenderInternal(inRect, listing);
-            }
         }
 
         private void RenderValue(string key, Listing_Standard listing)
@@ -246,8 +245,8 @@ namespace ModBase
             }
             else if (type == typeof(bool))
             {
-                Debug("Found bool!");
                 var temp = (bool) curValue;
+                Debug($"Found bool! label is {label}, value is {temp}");
                 listing.CheckboxLabeled(label, ref temp, Tooltip(key, info));
                 info.SetValue(Settings, temp, this);
             }
@@ -273,15 +272,9 @@ namespace ModBase
             }
         }
 
-        private string SettingLabel(string key, FieldInfo info)
-        {
-            return (title + "." + key + ".Label").TryTranslate(out var result) ? (string) result : key;
-        }
+        private string SettingLabel(string key, FieldInfo info) => (title + "." + key + ".Label").TryTranslate(out var result) ? (string) result : key;
 
-        private string Tooltip(string key, FieldInfo info)
-        {
-            return (title + "." + key + ".Tooltip").TryTranslate(out var result) ? result : null;
-        }
+        private string Tooltip(string key, FieldInfo info) => (title + "." + key + ".Tooltip").TryTranslate(out var result) ? result : null;
 
         private static void Debug(string message)
         {
